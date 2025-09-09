@@ -1,0 +1,26 @@
+export function getHeldItem(index: number): string {
+  return HeldItem[index];
+}
+
+
+export enum HeldItem {
+  NONE,
+  EVERSTONE,
+  DESTINY_KNOT,
+  POWER_WEIGHT,
+  POWER_BRACER,
+  POWER_BELT,
+  POWER_LENS,
+  POWER_BAND,
+  POWER_ANKLET,
+  LIGHT_BALL,
+  SEA_INCENSE,
+  LAX_INCENSE,
+  ROSE_INCENSE,
+  PURE_INCENSE,
+  ROCK_INCENSE,
+  ODD_INCENSE,
+  LUCK_INCENSE,
+  WAVE_INCENSE,
+  FULL_INCENSE
+}
