@@ -60,7 +60,7 @@ const PokemonListScreen = ({ navigation }: any) => {
 
             <TouchableOpacity
                 onPress={() => {
-                    const item: Pokemon = GeneratePokemon({ id: SpeciesId.CHARIZARD, ivs: [31, 31, 31, 31, 31, 31] });
+                    const item: Pokemon = GeneratePokemon({ id: SpeciesId.CHARMANDER });
                     addPokemon(item);
                     navigation.navigate("PokemonDetails", {
                         pokemon: item,
@@ -73,6 +73,7 @@ const PokemonListScreen = ({ navigation }: any) => {
             <TouchableOpacity
                 onPress={() => {
                     addMoney(100);
+                    addItem(HeldItem.EVERSTONE, 1);
                     addItem(HeldItem.DESTINY_KNOT, 1);
                     addItem(HeldItem.POWER_ANKLET, 1);
                     addItem(HeldItem.POWER_BAND, 1);

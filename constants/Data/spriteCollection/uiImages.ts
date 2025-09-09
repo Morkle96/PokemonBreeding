@@ -1,3 +1,4 @@
+
 export const uiImages: { [key: string]: any } = {
     SHINYSTAR: () => require('@/assets/images/ui/shiny.png'),
 }
@@ -31,4 +32,7 @@ export const heldItemsImages: { [key: string]: any } = {
     POWER_WEIGHT: () => require('@/assets/images/ui/items/Power_Weight.png'),
     POWER_ANKLET: () => require('@/assets/images/ui/items/Power_Anklet.png'),
     POWER_LENS: () => require('@/assets/images/ui/items/Power_Lens.png'),
+    EVERSTONE: () => require('@/assets/images/ui/items/Everstone.png'),
+    DESTINY_KNOT: () => require('@/assets/images/ui/items/Destiny_Knot.png'),
 }
+

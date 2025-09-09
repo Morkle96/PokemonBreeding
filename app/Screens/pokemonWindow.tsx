@@ -7,7 +7,7 @@ import { Gender, Pokemon } from "@/constants/Data/pokemon";
 import { heldItemsImages, typesImages } from "@/constants/Data/spriteCollection/uiImages";
 import { getAbilityName } from "@/constants/Enums/abilities";
 import { Color, TypeColor } from "@/constants/Enums/color";
-import { HeldItem } from "@/constants/Enums/items";
+import { getHeldItem, HeldItem } from "@/constants/Enums/items";
 import { Nature } from "@/constants/Enums/nature";
 import { getType } from "@/constants/Enums/type";
 import { Canvas, FilterMode, MipmapMode, Image as SkiaImage, useImage } from '@shopify/react-native-skia';
@@ -34,17 +34,22 @@ const PokemonDetailsScreen: React.FC<PokemonDetailsProps> = ({ route, navigation
     const ivLabels = ["HP", "ATK", "DEF", "SPD", "SP.DEF", "SP.ATK"];
 
     const tw = 80;
-    const type1Image = pokemon.pokemonSpecies.type1
-        ? useImage(typesImages[getType(pokemon.pokemonSpecies.type1)]())
-        : null;
+    const type1Src = pokemon.pokemonSpecies.type1
+    ? typesImages[getType(pokemon.pokemonSpecies.type1)]()
+    : undefined;
 
-    const type2Image = pokemon.pokemonSpecies.type2
-        ? useImage(typesImages[getType(pokemon.pokemonSpecies.type2)]())
-        : null;
+    const type2Src = pokemon.pokemonSpecies.type2
+    ? typesImages[getType(pokemon.pokemonSpecies.type2)]()
+    : undefined;
 
-    const heldItem = pokemon.heldItem
-        ? useImage(heldItemsImages[HeldItem[pokemon.heldItem]])
-        : null;
+    const heldItemSrc = pokemon.heldItem
+    ? heldItemsImages[getHeldItem(pokemon.heldItem)]()
+    : undefined;
+
+// ✅ Always call the hook, pass undefined when no image
+const type1Image = useImage(type1Src);
+const type2Image = useImage(type2Src);
+const heldItem   = useImage(heldItemSrc);
 
     return (
         <>
@@ -59,27 +64,46 @@ const PokemonDetailsScreen: React.FC<PokemonDetailsProps> = ({ route, navigation
                 >
                     {inventory && Object.keys(inventory.items).length > 0 && (
                         <FlatList
-                            data={Object.entries(inventory.items)} // [[itemKey, count], ...]
+                            style={{ paddingTop: 100 }}
+                            contentContainerStyle={{ alignItems: "center" }} // <--- centers children
+                            data={Object.entries(inventory.items)}
                             keyExtractor={([itemKey]) => itemKey}
-                            numColumns={2}
-                            columnWrapperStyle={{ justifyContent: "space-between" }}
                             renderItem={({ item }) => {
-                                const [itemKey, count] = item; // itemKey = HeldItem, count = number
+                                const [itemKey, count] = item;
+                                const itemId = parseInt(itemKey, 10);
+
                                 return (
                                     <TouchableOpacity
-                                        onPress={() => { pokemon.heldItem =  }}
-                                        style={styles.itemContainer}
-                                    >
-                                        <View style={{ alignItems: "center" }}>
-                                            {/* Replace with your own Item sprite/icon */}
-                                            <CustomText style={styles.nameText}>
-                                                {itemKey} x{count}
+                                        onPress={() => { pokemon.heldItem = itemId, setIsSelecting(false) }}
+                                        style={[
+                                            styles.itemContainer,
+                                            {
+                                            flex: 0,
+                                            flexGrow: 0,
+                                            alignSelf: 'center',
+
+                                            height: 50,
+                                            minHeight: 0,
+                                            paddingVertical: 0,
+                                            borderWidth: 1,
+                                            borderRadius: 8,
+                                            width: 200,
+                                            overflow: 'hidden',
+                                            }
+                                        ]}
+                                        >
+                                        <View style={{ alignItems: "center", justifyContent: 'center', width: "100%", height: '100%' }}>
+                                            <CustomText style={[styles.nameText, { lineHeight: undefined /* or <= 50 */, marginVertical: 0, paddingVertical: 0 }]}>
+                                            {HeldItem[itemId]}: x{count}
                                             </CustomText>
                                         </View>
-                                    </TouchableOpacity>
+                                        </TouchableOpacity>
+
                                 );
                             }}
                         />
+
+
                     )}
 
                 </View>
@@ -131,7 +155,7 @@ const PokemonDetailsScreen: React.FC<PokemonDetailsProps> = ({ route, navigation
 
 
 
-                    <Canvas style={{ width: type2Image ? tw * 2 + 10 : tw * 2 + 10, height: 80, alignSelf: "center" }}>
+                    <Canvas style={{ width: type2Image ? tw * 2 + 10 : tw * 1 + 10, height: 160, alignSelf: "center" }}>
                         {type1Image && (
                             <SkiaImage
                                 image={type1Image}
@@ -163,8 +187,8 @@ const PokemonDetailsScreen: React.FC<PokemonDetailsProps> = ({ route, navigation
                         {heldItem && (
                             <SkiaImage
                                 image={heldItem}
-                                x={tw + 10}
-                                y={0}
+                                x={type2Image? tw / 2 : 0}
+                                y={60}
                                 width={tw}
                                 height={tw}
                                 fit="contain"

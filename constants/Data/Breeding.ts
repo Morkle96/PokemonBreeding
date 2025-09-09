@@ -6,7 +6,6 @@ import { getRandomNature } from "../Enums/nature";
 import { SpeciesId } from "../Enums/species";
 import { pokemonPrevolutions } from "./pokemonEvolutions";
 
-
 export const powerItemMap: Partial<Record<HeldItem, number>> = {
   [HeldItem.POWER_WEIGHT]: 0,   // HP
   [HeldItem.POWER_BRACER]: 1,   // Attack
@@ -15,7 +14,6 @@ export const powerItemMap: Partial<Record<HeldItem, number>> = {
   [HeldItem.POWER_BAND]: 4,     // Special Defense
   [HeldItem.POWER_ANKLET]: 5,   // Speed
 };
-
 
 const shinyConfig = {
   enabled: true,
@@ -89,83 +87,13 @@ function getShinyOdds(p1: Pokemon, p2: Pokemon): number {
   return numerator / shinyConfig.baseOdds;
 }
 
-
-function calculateIV(p1: Pokemon, p2: Pokemon): number[] {
-
-  const ivs: number[] = Array.from({ length: 6 }, () => randInt(1, 31));
-
-  // --- Destiny Knot Check ---
-  const p1DestinyKnot = p1.heldItem === HeldItem.DESTINY_KNOT;
-  const p2DestinyKnot = p2.heldItem === HeldItem.DESTINY_KNOT;
-  const hasDestinyKnot = p1DestinyKnot || p2DestinyKnot;
-
-
-  console.log("Held items:");
-  console.log(p1.heldItem);
-  console.log(p2.heldItem);
-
-
-  // --- Power Item Check ---
-  const p1PowerStat = powerItemMap[p1.heldItem] ?? null;
-  const p2PowerStat = powerItemMap[p2.heldItem] ?? null;
-
-  let guaranteedStat: number | null = null;
-  let guaranteedParent: Pokemon | null = null;
-
-  if (p1PowerStat !== null && p2PowerStat !== null) {
-    // Both parents have different Power items -> randomly pick one
-    if (Math.random() < 0.5) {
-      guaranteedStat = p1PowerStat;
-      guaranteedParent = p1;
-    } else {
-      guaranteedStat = p2PowerStat;
-      guaranteedParent = p2;
-    }
-  } else if (p1PowerStat !== null) {
-    guaranteedStat = p1PowerStat;
-    guaranteedParent = p1;
-  } else if (p2PowerStat !== null) {
-    guaranteedStat = p2PowerStat;
-    guaranteedParent = p2;
-  }
-
-  if (guaranteedStat !== null && guaranteedParent !== null) {
-    // Apply Power item inheritance
-    ivs[guaranteedStat] = guaranteedParent.iv[guaranteedStat];
-    console.log(ivs);
-  }
-
-  if (hasDestinyKnot) {
-  let numInherited = guaranteedStat !== null ? 4 : 5;
-  const inheritedStats = getRandomUniqueStats(numInherited, guaranteedStat);
-
-  for (const statIndex of inheritedStats) {
-    if (Math.random() < 0.5) {
-      ivs[statIndex] = p1.iv[statIndex];
-    } else {
-      ivs[statIndex] = p2.iv[statIndex];
-    }
-  }
-  } else {
-    let numInherited = guaranteedStat !== null ? 2 : 3;
-    const inheritedStats = getRandomUniqueStats(numInherited, guaranteedStat);
-
-    for (const statIndex of inheritedStats) {
-      if (Math.random() < 0.5) {
-        ivs[statIndex] = p1.iv[statIndex];
-      } else {
-        ivs[statIndex] = p2.iv[statIndex];
-      }
-    }
-  }
-  return ivs;
-}
-
-function getRandomUniqueStats(count: number, exclude: number | null): number[] {
-  const available = [0, 1, 2, 3, 4, 5].filter(i => i !== exclude);
+/** Return N unique stats in [0..5], excluding any in `excludes`. */
+function getRandomUniqueStats(count: number, excludes?: number[] | null): number[] {
+  const ex = new Set(excludes ?? []);
+  const available = [0, 1, 2, 3, 4, 5].filter(i => !ex.has(i));
   const chosen: number[] = [];
 
-  while (chosen.length < count) {
+  while (chosen.length < count && available.length > 0) {
     const idx = Math.floor(Math.random() * available.length);
     chosen.push(available[idx]);
     available.splice(idx, 1); // remove so it can’t repeat
@@ -174,12 +102,69 @@ function getRandomUniqueStats(count: number, exclude: number | null): number[] {
   return chosen;
 }
 
+/**
+ * Calculate child IVs with support for:
+ * - Multiple Power items applying simultaneously (e.g., Band + Anklet)
+ * - Destiny Knot (5 total inherited stats, including any guaranteed by Power items)
+ * - No Destiny Knot (3 total inherited stats, incl. guarantees)
+ */
+function calculateIV(p1: Pokemon, p2: Pokemon): number[] {
+  // Start random baseline (1..31)
+  const ivs: number[] = Array.from({ length: 6 }, () => randInt(1, 31));
+
+  // Destiny Knot?
+  const p1DestinyKnot = p1.heldItem === HeldItem.DESTINY_KNOT;
+  const p2DestinyKnot = p2.heldItem === HeldItem.DESTINY_KNOT;
+  const hasDestinyKnot = p1DestinyKnot || p2DestinyKnot;
+
+  // --- Power Items (allow multiple) ---
+  const p1PowerStat = powerItemMap[p1.heldItem] ?? null;
+  const p2PowerStat = powerItemMap[p2.heldItem] ?? null;
+
+  const guaranteedStats: number[] = [];
+  const guaranteedSources: Pokemon[] = [];
+
+  if (p1PowerStat !== null) {
+    guaranteedStats.push(p1PowerStat);
+    guaranteedSources.push(p1);
+  }
+
+  if (p2PowerStat !== null) {
+    if (p2PowerStat === p1PowerStat && p1PowerStat !== null) {
+      // Same stat on both parents → pick which parent's IV to use for that stat.
+      const idx = guaranteedStats.indexOf(p2PowerStat);
+      if (idx >= 0) {
+        guaranteedSources[idx] = Math.random() < 0.5 ? p1 : p2;
+      }
+    } else {
+      guaranteedStats.push(p2PowerStat);
+      guaranteedSources.push(p2);
+    }
+  }
+
+  // Apply all guaranteed (Power item) stats
+  for (let i = 0; i < guaranteedStats.length; i++) {
+    const s = guaranteedStats[i];
+    const parent = guaranteedSources[i];
+    ivs[s] = parent.iv[s];
+  }
+
+  // Determine how many total stats are inherited (including guarantees)
+  const totalInherited = hasDestinyKnot ? 5 : 3;
+  const remainingToInherit = Math.max(0, totalInherited - guaranteedStats.length);
+
+  // Choose the remaining inherited stats, excluding already guaranteed
+  const inheritedStats = getRandomUniqueStats(remainingToInherit, guaranteedStats);
+
+  // For each of those, copy from a random parent
+  for (const statIndex of inheritedStats) {
+    ivs[statIndex] = Math.random() < 0.5 ? p1.iv[statIndex] : p2.iv[statIndex];
+  }
+
+  return ivs;
+}
 
 export function Breed(p1: Pokemon, p2: Pokemon): Pokemon | null {
-
-  console.log(p1);
-  console.log(p2);
-
   // Genderless rule
   if (isGenderless(p1) && isGenderless(p2)) {
     return null;
@@ -197,7 +182,7 @@ export function Breed(p1: Pokemon, p2: Pokemon): Pokemon | null {
 
   // Get preEvolution
   let pre: SpeciesId;
-  
+
   if (isDitto(p1)) {
     pre = p2.pokemonSpecies.speciesId;
   } else if (isDitto(p2)) {
@@ -222,81 +207,71 @@ export function Breed(p1: Pokemon, p2: Pokemon): Pokemon | null {
   const height = species.height * (0.9 + Math.random() * 0.2);
   const weight = species.weight * (0.9 + Math.random() * 0.2);
 
-  // ability: randomly from either parent
+  // ability: randomly from either parent, with HA handling
   let chosenAbility: string;
 
-// figure out who the "mother" is (non-Ditto female if possible)
-const mother = isDitto(p1) ? p2 : isDitto(p2) ? p1 : (isFemale(p1) ? p1 : p2);
+  // figure out who the "mother" is (non-Ditto female if possible)
+  const mother = isDitto(p1) ? p2 : isDitto(p2) ? p1 : (isFemale(p1) ? p1 : p2);
 
-// ability count (only count non-null)
-const abilityCount =
-  (species.ability1 ? 1 : 0) +
-  (species.ability2 ? 1 : 0) +
-  (species.abilityHidden ? 1 : 0);
+  // ability count (only count non-null)
+  const abilityCount =
+    (species.ability1 ? 1 : 0) +
+    (species.ability2 ? 1 : 0) +
+    (species.abilityHidden ? 1 : 0);
 
-if (species.abilityHidden) {
-  if (mother.ability === "ah") {
-    // Mother already has HA → 60% chance
-    chosenAbility = Math.random() < 0.6
-      ? "ah"
-      : randChoice(
-          ["a1", "a2"].filter(
-            a => abilityFromKey(species, a) !== null
+  if (species.abilityHidden) {
+    if (mother.ability === "ah") {
+      // Mother already has HA → 60% chance
+      chosenAbility = Math.random() < 0.6
+        ? "ah"
+        : randChoice(
+            ["a1", "a2"].filter(
+              a => abilityFromKey(species, a) !== null
+            )
+          );
+    } else {
+      // Mother has regular ability → slim HA chance
+      let haChance = 0;
+      if (abilityCount === 3) {
+        haChance = 0.1;
+      } else if (abilityCount === 2) {
+        haChance = 0.2;
+      }
+
+      if (Math.random() < haChance) {
+        chosenAbility = "ah";
+      } else {
+        chosenAbility = randChoice(
+          [p1.ability, p2.ability].filter(
+            a => a !== "ah" && abilityFromKey(species, a) !== null
           )
         );
+      }
+    }
   } else {
-    // Mother has regular ability → slim HA chance
-    let haChance = 0;
-    if (abilityCount === 3) {
-      haChance = 0.1;
-    } else if (abilityCount === 2) {
-      haChance = 0.2;
-    }
-
-    if (Math.random() < haChance) {
-      chosenAbility = "ah";
-    } else {
-      chosenAbility = randChoice(
-        [p1.ability, p2.ability].filter(
-          a => a !== "ah" && abilityFromKey(species, a) !== null
-        )
-      );
-    }
+    // no HA
+    chosenAbility = randChoice([p1.ability, p2.ability]);
   }
-} else {
-  // no HA
-  chosenAbility = randChoice([p1.ability, p2.ability]);
-}
-  
 
   // ---- Shiny odds ----
   const shinyOdds = getShinyOdds(p1, p2);
   const isShiny = Math.random() < shinyOdds;
 
+  // Calculate IVs (supports multi Power items + Destiny Knot logic)
+  const ivs = calculateIV(p1, p2);
 
-  // Calculate IV
-  console.log("IV");
-  
-  console.log(p1.iv)
-  console.log(p2.iv)
-
-  var ivs = calculateIV(p1, p2);
-
-   console.log("IV AFTER");
-  
-  console.log(ivs)
-
-  // Nature
-  var nature = getRandomNature();
-  if(p1.heldItem == HeldItem.EVERSTONE && p2.heldItem == HeldItem.EVERSTONE){
-    (Math.random() < 0.5)? nature = p1.nature : nature = p2.nature;
-  }
-  else if(p1.heldItem == HeldItem.EVERSTONE){
+  // Nature (Everstone logic)
+  let nature = getRandomNature();
+  if (p1.heldItem == HeldItem.EVERSTONE && p2.heldItem == HeldItem.EVERSTONE) {
+    nature = Math.random() < 0.5 ? p1.nature : p2.nature;
+  } else if (p1.heldItem == HeldItem.EVERSTONE) {
     nature = p1.nature;
-  }
-  else if(p2.heldItem == HeldItem.EVERSTONE){
+  } else if (p2.heldItem == HeldItem.EVERSTONE) {
     nature = p2.nature;
   }
+
+  // Gender (12.5% female in your example; adjust if you later want species-based rates)
+  const finalGender = randInt(1, 16) === 1 ? Gender.FEMALE : Gender.MALE;
 
   return new Pokemon(
     pre,
@@ -307,11 +282,11 @@ if (species.abilityHidden) {
     ivs[0], // hp
     ivs[1], // atk
     ivs[2], // def
-    ivs[3], // spatk ✅
-    ivs[4], // spdef ✅
-    ivs[5], // spd ✅
+    ivs[3], // spatk
+    ivs[4], // spdef
+    ivs[5], // spd
     isShiny,
-    Gender.MALE,
+    finalGender,
     nature,
     0,
     null,

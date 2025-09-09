@@ -4,7 +4,7 @@ export function getHeldItem(index: number): string {
 
 
 export enum HeldItem {
-  NONE,
+  NONE = 0,
   EVERSTONE,
   DESTINY_KNOT,
   POWER_WEIGHT,
